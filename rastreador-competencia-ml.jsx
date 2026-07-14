@@ -1,15 +1,8 @@
 // ---------- Helpers ----------
-
 const STORAGE_CATALOG_KEY = "catalogo-productos";
 const STORAGE_INDEX_KEY = "evidencias-index";
 
-const norm = (s = "") =>
-  s
-    .toString()
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+const norm = (s = "") => s.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 function pickField(row, candidates) {
   const keys = Object.keys(row);
@@ -39,32 +32,20 @@ const bookmarkletSource = function () {
   try {
     var titleEl = document.querySelector("h1.ui-pdp-title") || document.querySelector(".ui-pdp-header__title-container h1");
     var title = titleEl ? titleEl.innerText.trim() : document.title;
-
     var priceEl = document.querySelector(".ui-pdp-price__second-line .andes-money-amount__fraction") || document.querySelector(".andes-money-amount__fraction");
     var price = priceEl ? priceEl.innerText.trim() : "";
-
     var sellerEl = document.querySelector(".ui-pdp-seller-summary__link") || document.querySelector(".ui-pdp-seller-summary__link-trigger-button a");
     var seller = sellerEl ? sellerEl.innerText.trim() : "";
-
     var link = window.location.href.split('?')[0];
-
     var text = "Titulo: " + title + "\nPrecio: " + price + "\nVendedor: " + seller + "\nLink: " + link;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
-        function () {
-          alert("✅ ¡Éxito! Copiado al portapapeles:\n\n" + text);
-        },
-        function () {
-          window.prompt("Tu navegador bloqueó el portapapeles automático. Copia manualmente estos datos:", text);
-        }
+        function () { alert("✅ ¡Éxito! Copiado al portapapeles:\n\n" + text); },
+        function () { window.prompt("Tu navegador bloqueó el portapapeles automático. Copia manualmente:", text); }
       );
-    } else {
-      window.prompt("Copia manualmente estos datos:", text);
-    }
-  } catch (e) {
-    alert("Error extrayendo datos: " + e.message);
-  }
+    } else { window.prompt("Copia manualmente estos datos:", text); }
+  } catch (e) { alert("Error extrayendo datos: " + e.message); }
 };
 
 function bookmarkletHref() {
@@ -78,12 +59,7 @@ function parsePastedText(text) {
     const m = text.match(re);
     return m ? m[1].trim() : "";
   };
-  return {
-    title: get("t[ií]tulo"),
-    price: get("precio"),
-    seller: get("vendedor"),
-    link: get("link"),
-  };
+  return { title: get("t[ií]tulo"), price: get("precio"), seller: get("vendedor"), link: get("link") };
 }
 
 function resizeImage(file, maxWidth = 900, quality = 0.8) {
@@ -113,9 +89,14 @@ function resizeImage(file, maxWidth = 900, quality = 0.8) {
 function App() {
   const [tab, setTab] = useState("catalogo");
   const [products, setProducts] = useState([]);
-  const [hiddenIds, setHiddenIds] = useState([]); // NUEVO ESTADO PARA OCULTOS
+  const [hiddenIds, setHiddenIds] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [search, setSearch] = useState("");
+  
+  // NUEVO: Estados para la paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // Optimizado: Solo dibuja 50 a la vez
+
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [form, setForm] = useState({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
   const [toast, setToast] = useState("");
@@ -134,8 +115,6 @@ function App() {
       try {
         const res = await window.storage.get(STORAGE_CATALOG_KEY, false);
         if (res && res.value) setProducts(JSON.parse(res.value));
-
-        // Cargar los productos ocultos
         const resHidden = await window.storage.get("catalogo-ocultos", false);
         if (resHidden && resHidden.value) setHiddenIds(JSON.parse(resHidden.value));
       } catch (e) {}
@@ -163,28 +142,39 @@ function App() {
 
   useEffect(() => { loadEvidences(); }, [loadEvidences]);
 
+  // Si el usuario busca algo nuevo, regresarlo a la página 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   async function handleExcelUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-    const parsed = rows
-      .map((row, i) => ({
-        id: i,
-        sku: pickField(row, ["sku", "codigo", "código"]),
-        title: pickField(row, ["titulo", "título", "producto", "nombre"]),
-        price: pickField(row, ["precio", "price"]),
-        link: pickField(row, ["link", "url", "publicacion", "publicación"]),
-      }))
-      .filter((p) => p.title);
-    setProducts(parsed);
-    try {
-      await window.storage.set(STORAGE_CATALOG_KEY, JSON.stringify(parsed), false);
-      showToast(`Catálogo cargado: ${parsed.length} productos`);
-    } catch (err) { showToast("El catálogo se cargó pero no se pudo guardar"); }
-    e.target.value = "";
+    setLoadingCatalog(true); // Mostrar que está trabajando
+    
+    // Pequeña pausa para que React alcance a pintar el "Cargando..."
+    setTimeout(async () => {
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        const parsed = rows
+          .map((row, i) => ({
+            id: i,
+            sku: pickField(row, ["sku", "codigo", "código"]),
+            title: pickField(row, ["titulo", "título", "producto", "nombre"]),
+            price: pickField(row, ["precio", "price"]),
+            link: pickField(row, ["link", "url", "publicacion", "publicación"]),
+          }))
+          .filter((p) => p.title);
+        setProducts(parsed);
+        try {
+          await window.storage.set(STORAGE_CATALOG_KEY, JSON.stringify(parsed), false);
+          showToast(`Catálogo cargado: ${parsed.length} productos`);
+        } catch (err) { showToast("El catálogo se cargó pero no se pudo guardar"); }
+        setLoadingCatalog(false);
+        e.target.value = "";
+    }, 100);
   }
 
   function openInML(title) { window.open(mlSearchUrl(title), "_blank", "noopener,noreferrer"); }
@@ -195,21 +185,16 @@ function App() {
     setTab("registrar");
   }
 
-  // NUEVO: Funciones para ocultar/mostrar productos
   async function hideProduct(id) {
     const newHidden = [...hiddenIds, id];
     setHiddenIds(newHidden);
-    try {
-      await window.storage.set("catalogo-ocultos", JSON.stringify(newHidden), false);
-    } catch (e) {}
+    try { await window.storage.set("catalogo-ocultos", JSON.stringify(newHidden), false); } catch (e) {}
     showToast("Producto ocultado de la lista");
   }
 
   async function restoreHidden() {
     setHiddenIds([]);
-    try {
-      await window.storage.delete("catalogo-ocultos", false);
-    } catch (e) {}
+    try { await window.storage.delete("catalogo-ocultos", false); } catch (e) {}
     showToast("Todos los productos ocultos han sido restaurados");
   }
 
@@ -225,7 +210,7 @@ function App() {
         compLink: parsed.link || f.compLink,
       }));
       showToast("Datos pegados desde el portapapeles");
-    } catch (e) { showToast("No se pudo leer el portapapeles (revisa permisos del navegador)"); }
+    } catch (e) { showToast("No se pudo leer el portapapeles"); }
   }
 
   async function handleImageChange(e) {
@@ -238,7 +223,7 @@ function App() {
   }
 
   async function saveEvidence() {
-    if (!selectedProduct) return showToast("Selecciona un producto del catálogo primero");
+    if (!selectedProduct) return showToast("Selecciona un producto del catálogo");
     if (!form.compTitle || !form.compPrice) return showToast("Falta el título o el precio de la competencia");
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const record = {
@@ -255,8 +240,6 @@ function App() {
       showToast("Evidencia guardada");
       setForm({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
       loadEvidences();
-      
-      // MODIFICACIÓN: Redirigir al catálogo en vez de a "evidencias"
       setTab("catalogo"); 
     } catch (err) { showToast("Error al guardar la evidencia"); }
   }
@@ -295,14 +278,21 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  // --- LÓGICA DE FILTRADO Y PAGINACIÓN ---
   const filteredProducts = products.filter((p) => {
-    // MODIFICACIÓN: Ocultar los productos que están en la lista de ocultos
     if (hiddenIds.includes(p.id)) return false;
-    
     const q = norm(search);
     if (!q) return true;
     return norm(p.title).includes(q) || norm(p.sku).includes(q);
   });
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  
+  // Obtenemos solo los productos de la página actual
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div style={styles.app}>
@@ -362,46 +352,74 @@ function App() {
             )}
 
             {loadingCatalog ? (
-              <p style={styles.muted}>Cargando catálogo...</p>
+              <div style={styles.emptyState}>
+                 <p>Cargando y procesando catálogo... (Esto puede demorar unos segundos si el archivo es grande)</p>
+              </div>
             ) : products.length === 0 ? (
               <div style={styles.emptyState}>
                 <p>Aún no hay productos cargados.</p>
                 <p style={styles.mutedSmall}>Sube tu Excel para empezar a comparar precios contra la competencia.</p>
               </div>
             ) : (
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>SKU</th>
-                      <th style={styles.th}>Producto</th>
-                      <th style={styles.th}>Precio</th>
-                      <th style={styles.th}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map((p) => (
-                      <tr key={p.id} style={styles.tr}>
-                        <td style={styles.tdMono}>{p.sku || "-"}</td>
-                        <td style={styles.td}>{p.title}</td>
-                        <td style={styles.tdMono}>{currency(p.price)}</td>
-                        <td style={{ ...styles.td, textAlign: "right" }}>
-                          {/* NUEVO: Botón de Ocultar */}
-                          <button style={styles.smallBtnGhost} onClick={() => hideProduct(p.id)} title="Ocultar producto de la lista">
-                            🙈 Ocultar
-                          </button>
-                          <button style={styles.smallBtnGhost} onClick={() => openInML(p.title)} title="Buscar en Mercado Libre">
-                            <Search size={14} /> Buscar en ML
-                          </button>
-                          <button style={styles.smallBtnGold} onClick={() => startEvidence(p)} title="Registrar evidencia de competencia">
-                            Registrar <ChevronRight size={14} />
-                          </button>
-                        </td>
+              <>
+                <div style={styles.tableWrap}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>SKU</th>
+                        <th style={styles.th}>Producto</th>
+                        <th style={styles.th}>Precio</th>
+                        <th style={styles.th}></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {/* Dibujamos SOLO los paginados, no los miles de golpe */}
+                      {paginatedProducts.map((p) => (
+                        <tr key={p.id} style={styles.tr}>
+                          <td style={styles.tdMono}>{p.sku || "-"}</td>
+                          <td style={styles.td}>{p.title}</td>
+                          <td style={styles.tdMono}>{currency(p.price)}</td>
+                          <td style={{ ...styles.td, textAlign: "right" }}>
+                            <button style={styles.smallBtnGhost} onClick={() => hideProduct(p.id)} title="Ocultar producto de la lista">
+                              🙈 Ocultar
+                            </button>
+                            <button style={styles.smallBtnGhost} onClick={() => openInML(p.title)} title="Buscar en Mercado Libre">
+                              <Search size={14} /> Buscar en ML
+                            </button>
+                            <button style={styles.smallBtnGold} onClick={() => startEvidence(p)} title="Registrar evidencia de competencia">
+                              Registrar <ChevronRight size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {paginatedProducts.length === 0 && (
+                          <tr><td colSpan="4" style={{...styles.td, textAlign: 'center', color: '#9198A8'}}>No se encontraron resultados</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* CONTROLES DE PAGINACIÓN */}
+                {totalPages > 1 && (
+                  <div style={styles.pagination}>
+                    <button 
+                      style={styles.pageBtn} 
+                      disabled={currentPage === 1} 
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    >
+                      Anterior
+                    </button>
+                    <span style={styles.pageText}>Página {currentPage} de {totalPages} ({filteredProducts.length} resultados)</span>
+                    <button 
+                      style={styles.pageBtn} 
+                      disabled={currentPage === totalPages} 
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
@@ -571,4 +589,9 @@ const styles = {
   deleteBtn: { position: "absolute", top: 10, right: 10, background: "rgba(24,29,40,0.8)", border: "1px solid #3A4256", color: "#e0a0a0", borderRadius: 6, padding: 6, display: "flex" },
   bookmarkletLink: { display: "inline-block", background: "#2A3142", border: "2px dashed #C9A227", color: "#EDE6DA", padding: "12px 20px", borderRadius: 8, fontWeight: 600, fontSize: 14, textDecoration: "none", marginBottom: 8 },
   toast: { position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#C9A227", color: "#181D28", padding: "10px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.35)" },
-}
+  
+  // NUEVOS ESTILOS: Para la Paginación
+  pagination: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", padding: "10px 0" },
+  pageBtn: { background: "#1F2531", border: "1px solid #3A4256", color: "#EDE6DA", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 13 },
+  pageText: { color: "#9198A8", fontSize: 13 }
+};
