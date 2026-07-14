@@ -37,39 +37,21 @@ function mlSearchUrl(title) {
 }
 
 // Bookmarklet source, kept as a readable function then minified for the href.
-// Bookmarklet source, kept as a readable function then minified for the href.
+// Bookmarklet source
 const bookmarkletSource = function () {
   try {
-    // 1. Selector actualizado para el Título
-    var titleEl =
-      document.querySelector("h1.ui-pdp-title") ||
-      document.querySelector(".ui-pdp-header__title-container h1");
+    var titleEl = document.querySelector("h1.ui-pdp-title") || document.querySelector(".ui-pdp-header__title-container h1");
     var title = titleEl ? titleEl.innerText.trim() : document.title;
 
-    // 2. Selector actualizado para el Precio
-    var priceEl =
-      document.querySelector(".ui-pdp-price__second-line .andes-money-amount__fraction") || 
-      document.querySelector(".andes-money-amount__fraction");
+    var priceEl = document.querySelector(".ui-pdp-price__second-line .andes-money-amount__fraction") || document.querySelector(".andes-money-amount__fraction");
     var price = priceEl ? priceEl.innerText.trim() : "";
 
-    // 3. Selector actualizado para el Vendedor (¡El principal culpable del error!)
-    var sellerEl =
-      document.querySelector(".ui-pdp-seller-summary__link") ||
-      document.querySelector(".ui-pdp-seller-summary__link-trigger-button a");
+    var sellerEl = document.querySelector(".ui-pdp-seller-summary__link") || document.querySelector(".ui-pdp-seller-summary__link-trigger-button a");
     var seller = sellerEl ? sellerEl.innerText.trim() : "";
 
-    // Limpiamos la URL para que no traiga parámetros basura de rastreo
     var link = window.location.href.split('?')[0];
 
-    var text =
-      "Titulo: " +
-      title +
-      "\nPrecio: " +
-      price +
-      "\nVendedor: " +
-      seller +
-      "\nLink: " +
-      link;
+    var text = "Titulo: " + title + "\nPrecio: " + price + "\nVendedor: " + seller + "\nLink: " + link;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
@@ -77,22 +59,20 @@ const bookmarkletSource = function () {
           alert("✅ ¡Éxito! Copiado al portapapeles:\n\n" + text);
         },
         function () {
-          window.prompt("Copia manualmente estos datos:", text);
+          window.prompt("Tu navegador bloqueó el portapapeles automático. Copia manualmente estos datos:", text);
         }
       );
     } else {
       window.prompt("Copia manualmente estos datos:", text);
     }
   } catch (e) {
-    alert("No se pudo extraer la informacion de esta pagina: " + e.message);
+    alert("Error extrayendo datos: " + e.message);
   }
 };
 
+// Generador del enlace (Corregido para soportar la compilación de Babel)
 function bookmarkletHref() {
-  const raw = `(function(){${bookmarkletSource
-    .toString()
-    .replace(/^function\s*\(\)\s*{/, "")
-    .replace(/}$/, "")}})()`;
+  const raw = "(" + bookmarkletSource.toString() + ")();";
   return "javascript:" + encodeURIComponent(raw);
 }
 
