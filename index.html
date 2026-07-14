@@ -50,6 +50,12 @@
             <label>Enlace:</label>
             <input type="text" id="mlEnlace" readonly>
         </div>
+        <div class="form-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+            <label>📸 Adjuntar Evidencia (Captura de pantalla):</label>
+            <input type="file" id="evidenciaImg" accept="image/*" style="background: #fff; border: 1px dashed #ccc; padding: 15px; width: 100%; cursor: pointer;">
+        </div>
+
+        <button id="btnGuardar" type="button" style="width: 100%; margin-top: 20px; background-color: #000; color: white; font-size: 18px; padding: 15px;">💾 Guardar Registro</button>
     </div>
 </div>
 
@@ -84,6 +90,38 @@
             alert('❌ Error al pegar: Es posible que el simulador web bloquee el acceso al portapapeles o no has copiado un JSON válido.');
             console.error('Detalle del error:', error);
         }
+    });
+    // --- FUNCIÓN 3: Botón de Guardar y Reiniciar ---
+    const btnGuardar = document.getElementById('btnGuardar');
+
+    btnGuardar.addEventListener('click', () => {
+        const titulo = document.getElementById('mlTitulo').value;
+        const evidencia = document.getElementById('evidenciaImg').files[0];
+
+        // 1. Validaciones de seguridad
+        if (!titulo || titulo === 'No encontrado') {
+            alert('⚠️ Primero debes buscar y pegar los datos de la competencia usando el marcador.');
+            return;
+        }
+
+        if (!evidencia) {
+            alert('📸 Por favor, adjunta una captura de pantalla como evidencia antes de guardar.');
+            return;
+        }
+
+        // 2. Simulación de guardado (Próximamente lo conectaremos a Supabase)
+        console.log("Guardando en base de datos:", {
+            titulo: titulo,
+            precio: document.getElementById('mlPrecio').value,
+            vendedor: document.getElementById('mlVendedor').value,
+            link: document.getElementById('mlEnlace').value,
+            imagen: evidencia.name
+        });
+
+        alert(`✅ ¡Registro de "${titulo}" guardado exitosamente!\n\n(En la siguiente fase, esta imagen y los datos se subirán a tu base de datos)`);
+
+        // 3. Mandar a la página principal (Recargar y limpiar la vista)
+        window.location.reload();
     });
 </script>
 
