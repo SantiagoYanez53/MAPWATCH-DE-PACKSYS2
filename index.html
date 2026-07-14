@@ -12,8 +12,12 @@
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #0056b3; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background-color: #004494; }
+        button { background-color: #0056b3; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: 0.3s; }
+        button:hover { opacity: 0.9; }
+        
+        /* Estilos para la nueva zona de pegado de imágenes */
+        #zonaPegadoImagen { border: 2px dashed #ccc; padding: 30px; text-align: center; background-color: #fafafa; border-radius: 8px; cursor: pointer; outline: none; transition: 0.3s; }
+        #zonaPegadoImagen:focus { border-color: #0056b3; background-color: #e9f5ff; }
     </style>
 </head>
 <body>
@@ -50,9 +54,13 @@
             <label>Enlace:</label>
             <input type="text" id="mlEnlace" readonly>
         </div>
+
         <div class="form-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
-            <label>📸 Adjuntar Evidencia (Captura de pantalla):</label>
-            <input type="file" id="evidenciaImg" accept="image/*" style="background: #fff; border: 1px dashed #ccc; padding: 15px; width: 100%; cursor: pointer;">
+            <label>📸 Evidencia (Captura de pantalla):</label>
+            <div id="zonaPegadoImagen" tabindex="0">
+                <p id="textoZonaImagen" style="margin: 0; color: #666;">Haz clic aquí y presiona <strong>Ctrl + V</strong> para pegar tu captura de pantalla</p>
+                <img id="vistaPreviaImagen" style="max-width: 100%; margin-top: 15px; display: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />
+            </div>
         </div>
 
         <button id="btnGuardar" type="button" style="width: 100%; margin-top: 20px; background-color: #000; color: white; font-size: 18px; padding: 15px;">💾 Guardar Registro</button>
@@ -68,7 +76,7 @@
         window.open(`https://listado.mercadolibre.com.mx/${queryFormateada}`, '_blank');
     }
 
-    // --- FUNCIÓN 2: Botón de Pegado Automático ---
+    // --- FUNCIÓN 2: Botón de Pegado Automático (Texto del Marcador) ---
     const btnPegar = document.getElementById('btnPegar');
     const mensajePegado = document.getElementById('mensajePegado');
 
@@ -87,40 +95,72 @@
             setTimeout(() => { mensajePegado.style.display = "none"; }, 3000);
 
         } catch (error) {
-            alert('❌ Error al pegar: Es posible que el simulador web bloquee el acceso al portapapeles o no has copiado un JSON válido.');
+            alert('❌ Error al pegar: Es posible que no hayas copiado un JSON válido con el marcador.');
             console.error('Detalle del error:', error);
         }
     });
+
+    // --- NUEVA FUNCIÓN: Lógica para pegar imágenes (Ctrl + V) ---
+    const zonaPegadoImagen = document.getElementById('zonaPegadoImagen');
+    const vistaPreviaImagen = document.getElementById('vistaPreviaImagen');
+    const textoZonaImagen = document.getElementById('textoZonaImagen');
+    
+    let imagenCapturada = null; // Esta variable guardará el archivo de la imagen
+
+    zonaPegadoImagen.addEventListener('paste', (evento) => {
+        evento.preventDefault();
+        
+        // Buscamos entre los elementos del portapapeles
+        const items = (evento.clipboardData || window.clipboardData).items;
+        
+        for (let index in items) {
+            let item = items[index];
+            // Si el elemento copiado es una imagen...
+            if (item.kind === 'file' && item.type.indexOf('image/') !== -1) {
+                
+                // Convertimos el elemento en un archivo Blob
+                const blob = item.getAsFile();
+                imagenCapturada = blob; 
+                
+                // Creamos una URL temporal para mostrar la vista previa
+                const imageUrl = URL.createObjectURL(blob);
+                vistaPreviaImagen.src = imageUrl;
+                vistaPreviaImagen.style.display = 'block';
+                
+                // Actualizamos el texto
+                textoZonaImagen.innerHTML = "✅ <strong>¡Imagen lista!</strong> (Si te equivocaste, puedes hacer Ctrl + V otra vez para reemplazarla)";
+                textoZonaImagen.style.color = "green";
+                
+                return; // Terminamos la búsqueda porque ya encontramos la imagen
+            }
+        }
+        
+        // Si el bucle termina y no encontró imágenes
+        alert('⚠️ No se detectó ninguna imagen. Asegúrate de haber usado una herramienta de recorte o copiado una imagen y vuelve a presionar Ctrl + V.');
+    });
+
     // --- FUNCIÓN 3: Botón de Guardar y Reiniciar ---
     const btnGuardar = document.getElementById('btnGuardar');
 
     btnGuardar.addEventListener('click', () => {
         const titulo = document.getElementById('mlTitulo').value;
-        const evidencia = document.getElementById('evidenciaImg').files[0];
 
-        // 1. Validaciones de seguridad
         if (!titulo || titulo === 'No encontrado') {
             alert('⚠️ Primero debes buscar y pegar los datos de la competencia usando el marcador.');
             return;
         }
 
-        if (!evidencia) {
-            alert('📸 Por favor, adjunta una captura de pantalla como evidencia antes de guardar.');
+        // Ahora validamos usando nuestra nueva variable
+        if (!imagenCapturada) {
+            alert('📸 Por favor, haz clic en el cuadro de evidencia y presiona Ctrl + V para pegar tu captura de pantalla.');
             return;
         }
 
-        // 2. Simulación de guardado (Próximamente lo conectaremos a Supabase)
-        console.log("Guardando en base de datos:", {
-            titulo: titulo,
-            precio: document.getElementById('mlPrecio').value,
-            vendedor: document.getElementById('mlVendedor').value,
-            link: document.getElementById('mlEnlace').value,
-            imagen: evidencia.name
-        });
+        // Simulación de guardado calculando el peso de la imagen pegada
+        const tamañoKB = Math.round(imagenCapturada.size / 1024);
+        alert(`✅ ¡Registro de "${titulo}" guardado exitosamente!\n\n(Tu captura de ${tamañoKB} KB está lista para la base de datos)`);
 
-        alert(`✅ ¡Registro de "${titulo}" guardado exitosamente!\n\n(En la siguiente fase, esta imagen y los datos se subirán a tu base de datos)`);
-
-        // 3. Mandar a la página principal (Recargar y limpiar la vista)
+        // Recarga la página para dejar todo limpio
         window.location.reload();
     });
 </script>
