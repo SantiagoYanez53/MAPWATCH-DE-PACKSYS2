@@ -381,7 +381,7 @@ function App() {
                           <td style={styles.tdMono}>{currency(p.price)}</td>
                           <td style={{ ...styles.td, textAlign: "right" }}>
                             <button style={styles.smallBtnGhost} onClick={() => hideProduct(p.id)} title="Ocultar producto de la lista">
-                              🙈 Ocultar
+                              Ocultar
                             </button>
                             <button style={styles.smallBtnGhost} onClick={() => openInML(p.title)} title="Buscar en Mercado Libre">
                               <Search size={14} /> Buscar en ML
