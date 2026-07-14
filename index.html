@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar de Competencia</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Declaramos los hooks de React de forma global
+        const { useState, useEffect, useRef, useCallback } = React;
+        
+        // Adaptador para los íconos de Lucide
+        const Icon = ({ name, size = 18, color = "currentColor" }) => {
+            useEffect(() => { lucide.createIcons(); });
+            return <i data-lucide={name} style={{ width: size, height: size, color, display: 'inline-block' }} />;
+        };
+        const Upload = (p) => <Icon name="upload" {...p} />;
+        const Search = (p) => <Icon name="search" {...p} />;
+        const ClipboardPaste = (p) => <Icon name="clipboard-paste" {...p} />;
+        const Save = (p) => <Icon name="save" {...p} />;
+        const Trash2 = (p) => <Icon name="trash-2" {...p} />;
+        const Download = (p) => <Icon name="download" {...p} />;
+        const ImageIcon = (p) => <Icon name="image" {...p} />;
+        const ChevronRight = (p) => <Icon name="chevron-right" {...p} />;
+        const Guitar = (p) => <Icon name="guitar" {...p} />;
+        const Link2 = (p) => <Icon name="link-2" {...p} />;
+        const Tag = (p) => <Icon name="tag" {...p} />;
+        const Store = (p) => <Icon name="store" {...p} />;
+
+        // Adaptador de Storage local
+        window.storage = {
+            get: async (key) => ({ value: localStorage.getItem(key) }),
+            set: async (key, value) => localStorage.setItem(key, value),
+            delete: async (key) => localStorage.removeItem(key)
+        };
+    </script>
+
+    <script type="text/babel" src="./rastreador-competencia-ml.jsx"></script>
+
+    <script type="text/babel">
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

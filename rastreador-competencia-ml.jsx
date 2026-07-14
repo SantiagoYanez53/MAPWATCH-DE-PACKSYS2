@@ -1,20 +1,3 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import * as XLSX from "xlsx";
-import {
-  Upload,
-  Search,
-  ClipboardPaste,
-  Save,
-  Trash2,
-  Download,
-  Image as ImageIcon,
-  ChevronRight,
-  Guitar,
-  Link2,
-  Tag,
-  Store,
-} from "lucide-react";
-
 // ---------- Helpers ----------
 
 const STORAGE_CATALOG_KEY = "catalogo-productos";
@@ -147,8 +130,7 @@ function resizeImage(file, maxWidth = 900, quality = 0.8) {
 }
 
 // ---------- Main component ----------
-
-export default function App() {
+function App() {
   const [tab, setTab] = useState("catalogo");
   const [products, setProducts] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
