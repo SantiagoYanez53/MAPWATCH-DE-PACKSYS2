@@ -3,248 +3,571 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar de Competencia - Prototipo</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; color: #333; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h2 { margin-top: 0; color: #0056b3; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #0056b3; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: 0.3s; }
-        button:hover { opacity: 0.9; }
-        
-        /* Estilos para la nueva zona de pegado de imágenes */
-        #zonaPegadoImagen { border: 2px dashed #ccc; padding: 30px; text-align: center; background-color: #fafafa; border-radius: 8px; cursor: pointer; outline: none; transition: 0.3s; }
-        #zonaPegadoImagen:focus { border-color: #0056b3; background-color: #e9f5ff; }
-    </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <title>Radar de Competencia</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <div id="root"></div>
 
-<div class="container">
-    <div class="card">
-        <h2>1. Tu Catálogo (Simulado)</h2>
-        <div class="form-group">
-            <label>Producto a buscar:</label>
-            <input type="text" id="productoPrueba" value="Fender Debut Negra">
-        </div>
-        <button onclick="buscarEnML()">🔍 Buscar en Mercado Libre</button>
-    </div>
+    <script type="text/babel">
+        // 1. Desestructurar los Hooks de React
+        const { useState, useEffect, useRef, useCallback } = React;
 
-    <div class="card">
-        <h2>2. Registrar Evidencia de la Competencia</h2>
-        
-        <button id="btnPegar" type="button" style="width: 100%; margin-bottom: 15px; background-color: #28a745;">📋 Pegar Datos del Marcador</button>
-        <p id="mensajePegado" style="color: green; display: none; font-weight: bold; text-align: center; margin-bottom: 15px;"></p>
+        // 2. Adaptador para los íconos de Lucide en el navegador
+        const Icon = ({ name, size = 18, color = "currentColor" }) => {
+            useEffect(() => { lucide.createIcons(); });
+            return <i data-lucide={name} style={{ width: size, height: size, color, display: 'inline-block' }} />;
+        };
+        const Upload = (p) => <Icon name="upload" {...p} />;
+        const Search = (p) => <Icon name="search" {...p} />;
+        const ClipboardPaste = (p) => <Icon name="clipboard-paste" {...p} />;
+        const Save = (p) => <Icon name="save" {...p} />;
+        const Trash2 = (p) => <Icon name="trash-2" {...p} />;
+        const Download = (p) => <Icon name="download" {...p} />;
+        const ImageIcon = (p) => <Icon name="image" {...p} />;
+        const ChevronRight = (p) => <Icon name="chevron-right" {...p} />;
+        const Guitar = (p) => <Icon name="guitar" {...p} />;
+        const Link2 = (p) => <Icon name="link-2" {...p} />;
+        const Tag = (p) => <Icon name="tag" {...p} />;
+        const Store = (p) => <Icon name="store" {...p} />;
 
-        <div class="form-group">
-            <label>Título en ML:</label>
-            <input type="text" id="mlTitulo" readonly>
-        </div>
-        <div class="form-group">
-            <label>Precio:</label>
-            <input type="text" id="mlPrecio" readonly>
-        </div>
-        <div class="form-group">
-            <label>Vendedor:</label>
-            <input type="text" id="mlVendedor" readonly>
-        </div>
-        <div class="form-group">
-            <label>Enlace:</label>
-            <input type="text" id="mlEnlace" readonly>
-        </div>
-
-        <div class="form-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
-            <label>📸 Evidencia (Captura de pantalla):</label>
-            <div id="zonaPegadoImagen" tabindex="0">
-                <p id="textoZonaImagen" style="margin: 0; color: #666;">Haz clic aquí y presiona <strong>Ctrl + V</strong> para pegar tu captura de pantalla</p>
-                <img id="vistaPreviaImagen" style="max-width: 100%; margin-top: 15px; display: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />
-            </div>
-        </div>
-
-        <button id="btnGuardar" type="button" style="width: 100%; margin-top: 20px; background-color: #000; color: white; font-size: 18px; padding: 15px;">💾 Guardar Registro</button>
-    </div>
-    <div class="card" style="margin-top: 30px; border-top: 4px solid #0056b3;">
-        <h2>3. Reporte de Competencia (Pantalla Principal)</h2>
-        <p>Aquí se listarán todos los registros guardados.</p>
-        
-        <div style="overflow-x: auto;">
-            <table id="tablaRegistros" style="width: 100%; border-collapse: collapse; margin-bottom: 20px; text-align: left;">
-                <thead>
-                    <tr style="background-color: #0056b3; color: white;">
-                        <th style="padding: 10px; border: 1px solid #ddd;">Título ML</th>
-                        <th style="padding: 10px; border: 1px solid #ddd;">Precio</th>
-                        <th style="padding: 10px; border: 1px solid #ddd;">Vendedor</th>
-                        <th style="padding: 10px; border: 1px solid #ddd;">Enlace</th>
-                        <th style="padding: 10px; border: 1px solid #ddd;">Evidencia (KB)</th>
-                    </tr>
-                </thead>
-                <tbody id="cuerpoTabla">
-                    </tbody>
-            </table>
-        </div>
-
-        <button id="btnExportar" style="background-color: #17a2b8; width: 100%; font-weight: bold;">📊 Exportar Reporte a Excel</button>
-        <button id="btnLimpiar" style="background-color: #dc3545; width: 100%; margin-top: 10px; font-size: 14px;">🗑️ Limpiar Base de Datos (Prueba)</button>
-    </div>
-</div>
-
-<script>
-    // --- FUNCIÓN 1: El botón de búsqueda ---
-    function buscarEnML() {
-        const titulo = document.getElementById('productoPrueba').value;
-        if (!titulo) return alert('Ingresa un título válido');
-        const queryFormateada = titulo.trim().toLowerCase().replace(/\s+/g, '-');
-        window.open(`https://listado.mercadolibre.com.mx/${queryFormateada}`, '_blank');
-    }
-
-    // --- FUNCIÓN 2: Botón de Pegado Automático (Texto del Marcador) ---
-    const btnPegar = document.getElementById('btnPegar');
-    const mensajePegado = document.getElementById('mensajePegado');
-
-    btnPegar.addEventListener('click', async () => {
-        try {
-            const textoPegado = await navigator.clipboard.readText();
-            const datosCompetencia = JSON.parse(textoPegado);
-            
-            document.getElementById('mlTitulo').value = datosCompetencia.titulo || 'No encontrado';
-            document.getElementById('mlPrecio').value = datosCompetencia.precio || 'No encontrado';
-            document.getElementById('mlVendedor').value = datosCompetencia.vendedor || 'No encontrado';
-            document.getElementById('mlEnlace').value = datosCompetencia.link || 'No encontrado';
-            
-            mensajePegado.innerText = "¡Datos extraídos con éxito! ✅";
-            mensajePegado.style.display = "block";
-            setTimeout(() => { mensajePegado.style.display = "none"; }, 3000);
-
-        } catch (error) {
-            alert('❌ Error al pegar: Es posible que no hayas copiado un JSON válido con el marcador.');
-            console.error('Detalle del error:', error);
-        }
-    });
-
-    // --- NUEVA FUNCIÓN: Lógica para pegar imágenes (Ctrl + V) ---
-    const zonaPegadoImagen = document.getElementById('zonaPegadoImagen');
-    const vistaPreviaImagen = document.getElementById('vistaPreviaImagen');
-    const textoZonaImagen = document.getElementById('textoZonaImagen');
-    
-    let imagenCapturada = null; // Esta variable guardará el archivo de la imagen
-
-    zonaPegadoImagen.addEventListener('paste', (evento) => {
-        evento.preventDefault();
-        
-        // Buscamos entre los elementos del portapapeles
-        const items = (evento.clipboardData || window.clipboardData).items;
-        
-        for (let index in items) {
-            let item = items[index];
-            // Si el elemento copiado es una imagen...
-            if (item.kind === 'file' && item.type.indexOf('image/') !== -1) {
-                
-                // Convertimos el elemento en un archivo Blob
-                const blob = item.getAsFile();
-                imagenCapturada = blob; 
-                
-                // Creamos una URL temporal para mostrar la vista previa
-                const imageUrl = URL.createObjectURL(blob);
-                vistaPreviaImagen.src = imageUrl;
-                vistaPreviaImagen.style.display = 'block';
-                
-                // Actualizamos el texto
-                textoZonaImagen.innerHTML = "✅ <strong>¡Imagen lista!</strong> (Si te equivocaste, puedes hacer Ctrl + V otra vez para reemplazarla)";
-                textoZonaImagen.style.color = "green";
-                
-                return; // Terminamos la búsqueda porque ya encontramos la imagen
-            }
-        }
-        
-        // Si el bucle termina y no encontró imágenes
-        alert('⚠️ No se detectó ninguna imagen. Asegúrate de haber usado una herramienta de recorte o copiado una imagen y vuelve a presionar Ctrl + V.');
-    });
-
-   // --- FUNCIÓN 3: Guardar en Memoria Local (Simulando Base de Datos) ---
-    btnGuardar.addEventListener('click', () => {
-        const titulo = document.getElementById('mlTitulo').value;
-        const precio = document.getElementById('mlPrecio').value;
-        const vendedor = document.getElementById('mlVendedor').value;
-        const enlace = document.getElementById('mlEnlace').value;
-
-        if (!titulo || titulo === 'No encontrado') {
-            return alert('⚠️ Primero debes buscar y pegar los datos de la competencia.');
-        }
-        if (!imagenCapturada) {
-            return alert('📸 Por favor, pega tu captura de pantalla.');
-        }
-
-        // Crear el objeto del registro
-        const nuevoRegistro = {
-            Titulo: titulo,
-            Precio: precio,
-            Vendedor: vendedor,
-            Enlace: enlace,
-            Evidencia_KB: Math.round(imagenCapturada.size / 1024)
+        // 3. Adaptador para window.storage (Usa localStorage nativo)
+        window.storage = {
+            get: async (key) => ({ value: localStorage.getItem(key) }),
+            set: async (key, value) => localStorage.setItem(key, value),
+            delete: async (key) => localStorage.removeItem(key)
         };
 
-        // Traer registros anteriores o crear arreglo nuevo
-        let registros = JSON.parse(localStorage.getItem('radarDB')) || [];
-        registros.push(nuevoRegistro);
-        
-        // Guardar en el navegador
-        localStorage.setItem('radarDB', JSON.stringify(registros));
+        // ---------- Helpers (Tu código original) ----------
+        const STORAGE_CATALOG_KEY = "catalogo-productos";
+        const STORAGE_INDEX_KEY = "evidencias-index";
 
-        alert('✅ ¡Registro guardado exitosamente en tu Pantalla Principal!');
-        window.location.reload(); // Recargar para limpiar el formulario y actualizar la tabla
-    });
+        const norm = (s = "") =>
+          s.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // --- FUNCIÓN 4: Cargar la Pantalla Principal (Tabla) ---
-    function cargarTabla() {
-        const registros = JSON.parse(localStorage.getItem('radarDB')) || [];
-        const cuerpoTabla = document.getElementById('cuerpoTabla');
-        
-        if (registros.length === 0) {
-            cuerpoTabla.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 15px;">No hay registros todavía. ¡Comienza a buscar competencia!</td></tr>';
-            return;
+        function pickField(row, candidates) {
+          const keys = Object.keys(row);
+          for (const cand of candidates) {
+            const match = keys.find((k) => norm(k) === norm(cand));
+            if (match) return row[match];
+          }
+          for (const cand of candidates) {
+            const match = keys.find((k) => norm(k).includes(norm(cand)));
+            if (match) return row[match];
+          }
+          return "";
         }
 
-        cuerpoTabla.innerHTML = ''; // Limpiar tabla
-        registros.forEach(reg => {
-            const fila = `<tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">${reg.Titulo}</td>
-                <td style="padding: 10px; border: 1px solid #ddd;">$${reg.Precio}</td>
-                <td style="padding: 10px; border: 1px solid #ddd;">${reg.Vendedor}</td>
-                <td style="padding: 10px; border: 1px solid #ddd;"><a href="${reg.Enlace}" target="_blank">Ver link</a></td>
-                <td style="padding: 10px; border: 1px solid #ddd;">${reg.Evidencia_KB} KB</td>
-            </tr>`;
-            cuerpoTabla.innerHTML += fila;
-        });
-    }
-
-    // --- FUNCIÓN 5: Exportar a Excel ---
-    document.getElementById('btnExportar').addEventListener('click', () => {
-        const registros = JSON.parse(localStorage.getItem('radarDB')) || [];
-        if (registros.length === 0) return alert('⚠️ No hay datos para exportar.');
-
-        // Convertir datos a hoja de cálculo
-        const hoja = XLSX.utils.json_to_sheet(registros);
-        const libro = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(libro, hoja, "Competencia");
-
-        // Descargar archivo
-        XLSX.writeFile(libro, "Reporte_Radar_Competencia.xlsx");
-    });
-
-    // --- FUNCIÓN EXTRA: Limpiar pruebas ---
-    document.getElementById('btnLimpiar').addEventListener('click', () => {
-        if(confirm('¿Estás seguro de borrar todos los registros de prueba?')) {
-            localStorage.removeItem('radarDB');
-            window.location.reload();
+        function currency(n) {
+          const num = Number(String(n).replace(/[^0-9.-]/g, ""));
+          if (Number.isNaN(num)) return n || "-";
+          return num.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
         }
-    });
 
-    // Ejecutar al cargar la página
-    cargarTabla();
-</script>
+        function mlSearchUrl(title) {
+          const q = encodeURIComponent(title.trim());
+          return `https://listado.mercadolibre.com.mx/${q}`;
+        }
 
+        const bookmarkletSource = function () {
+          try {
+            var titleEl = document.querySelector("h1.ui-pdp-title") || document.querySelector("[class*='title']");
+            var title = titleEl ? titleEl.innerText.trim() : document.title;
+            var priceEl = document.querySelector(".ui-pdp-price__second-line .andes-money-amount__fraction") || document.querySelector(".andes-money-amount__fraction");
+            var price = priceEl ? priceEl.innerText.trim() : "";
+            var sellerEl = document.querySelector(".ui-pdp-seller__link-trigger") || document.querySelector("[class*='seller'] a") || document.querySelector("[class*='seller']");
+            var seller = sellerEl ? sellerEl.innerText.trim() : "";
+            var link = window.location.href;
+            var text = "Titulo: " + title + "\nPrecio: " + price + "\nVendedor: " + seller + "\nLink: " + link;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(
+                function () { alert("Copiado al portapapeles:\n\n" + text); },
+                function () { window.prompt("Copia manualmente estos datos:", text); }
+              );
+            } else {
+              window.prompt("Copia manualmente estos datos:", text);
+            }
+          } catch (e) {
+            alert("No se pudo extraer la informacion de esta pagina: " + e.message);
+          }
+        };
+
+        function bookmarkletHref() {
+          const raw = `(function(){${bookmarkletSource.toString().replace(/^function\s*\(\)\s*{/, "").replace(/}$/, "")}})()`;
+          return "javascript:" + encodeURIComponent(raw);
+        }
+
+        function parsePastedText(text) {
+          const get = (label) => {
+            const re = new RegExp(label + "\\s*:\\s*(.+)", "i");
+            const m = text.match(re);
+            return m ? m[1].trim() : "";
+          };
+          return {
+            title: get("t[ií]tulo"),
+            price: get("precio"),
+            seller: get("vendedor"),
+            link: get("link"),
+          };
+        }
+
+        function resizeImage(file, maxWidth = 900, quality = 0.8) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const img = new Image();
+              img.onload = () => {
+                const scale = Math.min(1, maxWidth / img.width);
+                const canvas = document.createElement("canvas");
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL("image/jpeg", quality));
+              };
+              img.onerror = reject;
+              img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        // ---------- App Component ----------
+        function App() {
+          const [tab, setTab] = useState("catalogo");
+          const [products, setProducts] = useState([]);
+          const [loadingCatalog, setLoadingCatalog] = useState(true);
+          const [search, setSearch] = useState("");
+          const [selectedProduct, setSelectedProduct] = useState(null);
+          const [form, setForm] = useState({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
+          const [toast, setToast] = useState("");
+          const [evidences, setEvidences] = useState([]);
+          const [loadingEvidences, setLoadingEvidences] = useState(true);
+          const fileInputRef = useRef(null);
+          const imageInputRef = useRef(null);
+
+          const showToast = (msg) => {
+            setToast(msg);
+            setTimeout(() => setToast(""), 2800);
+          };
+
+          useEffect(() => {
+            (async () => {
+              try {
+                const res = await window.storage.get(STORAGE_CATALOG_KEY, false);
+                if (res && res.value) setProducts(JSON.parse(res.value));
+              } catch (e) {}
+              setLoadingCatalog(false);
+            })();
+          }, []);
+
+          const loadEvidences = useCallback(async () => {
+            setLoadingEvidences(true);
+            try {
+              const idx = await window.storage.get(STORAGE_INDEX_KEY, false);
+              const ids = idx && idx.value ? JSON.parse(idx.value) : [];
+              const items = [];
+              for (const id of ids) {
+                try {
+                  const rec = await window.storage.get(`evidencia:${id}`, false);
+                  if (rec && rec.value) items.push(JSON.parse(rec.value));
+                } catch (e) {}
+              }
+              items.sort((a, b) => b.createdAt - a.createdAt);
+              setEvidences(items);
+            } catch (e) { setEvidences([]); }
+            setLoadingEvidences(false);
+          }, []);
+
+          useEffect(() => { loadEvidences(); }, [loadEvidences]);
+
+          async function handleExcelUpload(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data);
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+            const parsed = rows
+              .map((row, i) => ({
+                id: i,
+                sku: pickField(row, ["sku", "codigo", "código"]),
+                title: pickField(row, ["titulo", "título", "producto", "nombre"]),
+                price: pickField(row, ["precio", "price"]),
+                link: pickField(row, ["link", "url", "publicacion", "publicación"]),
+              }))
+              .filter((p) => p.title);
+            setProducts(parsed);
+            try {
+              await window.storage.set(STORAGE_CATALOG_KEY, JSON.stringify(parsed), false);
+              showToast(`Catálogo cargado: ${parsed.length} productos`);
+            } catch (err) { showToast("El catálogo se cargó pero no se pudo guardar"); }
+            e.target.value = "";
+          }
+
+          function openInML(title) { window.open(mlSearchUrl(title), "_blank", "noopener,noreferrer"); }
+
+          function startEvidence(product) {
+            setSelectedProduct(product);
+            setForm({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
+            setTab("registrar");
+          }
+
+          async function handlePaste() {
+            try {
+              const text = await navigator.clipboard.readText();
+              const parsed = parsePastedText(text);
+              setForm((f) => ({
+                ...f,
+                compTitle: parsed.title || f.compTitle,
+                compPrice: parsed.price || f.compPrice,
+                compSeller: parsed.seller || f.compSeller,
+                compLink: parsed.link || f.compLink,
+              }));
+              showToast("Datos pegados desde el portapapeles");
+            } catch (e) { showToast("No se pudo leer el portapapeles (revisa permisos del navegador)"); }
+          }
+
+          async function handleImageChange(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              const dataUrl = await resizeImage(file);
+              setForm((f) => ({ ...f, imageData: dataUrl }));
+            } catch (err) { showToast("No se pudo procesar la imagen"); }
+          }
+
+          async function saveEvidence() {
+            if (!selectedProduct) return showToast("Selecciona un producto del catálogo primero");
+            if (!form.compTitle || !form.compPrice) return showToast("Falta el título o el precio de la competencia");
+            const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            const record = {
+              id, createdAt: Date.now(),
+              sku: selectedProduct.sku, ownTitle: selectedProduct.title, ownPrice: selectedProduct.price, ownLink: selectedProduct.link,
+              compTitle: form.compTitle, compPrice: form.compPrice, compSeller: form.compSeller, compLink: form.compLink, imageData: form.imageData,
+            };
+            try {
+              await window.storage.set(`evidencia:${id}`, JSON.stringify(record), false);
+              const idx = await window.storage.get(STORAGE_INDEX_KEY, false).catch(() => null);
+              const ids = idx && idx.value ? JSON.parse(idx.value) : [];
+              ids.push(id);
+              await window.storage.set(STORAGE_INDEX_KEY, JSON.stringify(ids), false);
+              showToast("Evidencia guardada");
+              setForm({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
+              loadEvidences();
+              setTab("evidencias");
+            } catch (err) { showToast("Error al guardar la evidencia"); }
+          }
+
+          async function deleteEvidence(id) {
+            try {
+              await window.storage.delete(`evidencia:${id}`, false);
+              const idx = await window.storage.get(STORAGE_INDEX_KEY, false).catch(() => null);
+              const ids = idx && idx.value ? JSON.parse(idx.value) : [];
+              const filtered = ids.filter((x) => x !== id);
+              await window.storage.set(STORAGE_INDEX_KEY, JSON.stringify(filtered), false);
+              loadEvidences();
+            } catch (err) { showToast("No se pudo eliminar el registro"); }
+          }
+
+          function exportExcel() {
+            if (evidences.length === 0) return showToast("No hay evidencias para exportar");
+            const rows = evidences.map((ev) => ({
+              SKU: ev.sku,
+              "Producto propio": ev.ownTitle, "Precio propio": ev.ownPrice, "Link propio": ev.ownLink,
+              "Producto competencia": ev.compTitle, "Precio competencia": ev.compPrice, "Vendedor competencia": ev.compSeller, "Link competencia": ev.compLink,
+              "Tiene captura": ev.imageData ? "Sí" : "No",
+              Fecha: new Date(ev.createdAt).toLocaleString("es-MX"),
+            }));
+            const ws = XLSX.utils.json_to_sheet(rows);
+            ws["!cols"] = [ { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 20 }, { wch: 28 }, { wch: 10 }, { wch: 18 } ];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Evidencias");
+            const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+            const blob = new Blob([buf], { type: "application/octet-stream" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `reporte-competencia-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
+
+          const filteredProducts = products.filter((p) => {
+            const q = norm(search);
+            if (!q) return true;
+            return norm(p.title).includes(q) || norm(p.sku).includes(q);
+          });
+
+          return (
+            <div style={styles.app}>
+              <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+                * { box-sizing: border-box; }
+                ::-webkit-scrollbar { width: 8px; height: 8px; }
+                ::-webkit-scrollbar-thumb { background: #3d4457; border-radius: 4px; }
+                button { font-family: inherit; cursor: pointer; }
+                input, select { font-family: inherit; }
+              `}</style>
+
+              <header style={styles.header}>
+                <div style={styles.brand}>
+                  <Guitar size={22} color="#C9A227" />
+                  <span style={styles.brandText}>Radar de Competencia</span>
+                </div>
+                <nav style={styles.nav}>
+                  {[
+                    { id: "catalogo", label: "Catálogo" },
+                    { id: "registrar", label: "Registrar evidencia" },
+                    { id: "evidencias", label: `Evidencias (${evidences.length})` },
+                    { id: "marcador", label: "Marcador de navegador" },
+                  ].map((t) => (
+                    <button key={t.id} onClick={() => setTab(t.id)} style={{ ...styles.navBtn, ...(tab === t.id ? styles.navBtnActive : {}) }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </nav>
+              </header>
+
+              {toast && <div style={styles.toast}>{toast}</div>}
+
+              <main style={styles.main}>
+                {tab === "catalogo" && (
+                  <section>
+                    <div style={styles.rowBetween}>
+                      <div>
+                        <h2 style={styles.h2}>Catálogo propio</h2>
+                        <p style={styles.muted}>Sube tu Excel con columnas SKU, Título, Precio y Link. Se guarda en este navegador para futuras visitas.</p>
+                      </div>
+                      <label style={styles.uploadBtn}>
+                        <Upload size={16} /> Cargar Excel
+                        <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} style={{ display: "none" }} />
+                      </label>
+                    </div>
+
+                    {!loadingCatalog && products.length > 0 && (
+                      <input placeholder="Buscar por título o SKU..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.searchInput} />
+                    )}
+
+                    {loadingCatalog ? (
+                      <p style={styles.muted}>Cargando catálogo...</p>
+                    ) : products.length === 0 ? (
+                      <div style={styles.emptyState}>
+                        <p>Aún no hay productos cargados.</p>
+                        <p style={styles.mutedSmall}>Sube tu Excel para empezar a comparar precios contra la competencia.</p>
+                      </div>
+                    ) : (
+                      <div style={styles.tableWrap}>
+                        <table style={styles.table}>
+                          <thead>
+                            <tr>
+                              <th style={styles.th}>SKU</th>
+                              <th style={styles.th}>Producto</th>
+                              <th style={styles.th}>Precio</th>
+                              <th style={styles.th}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredProducts.map((p) => (
+                              <tr key={p.id} style={styles.tr}>
+                                <td style={styles.tdMono}>{p.sku || "-"}</td>
+                                <td style={styles.td}>{p.title}</td>
+                                <td style={styles.tdMono}>{currency(p.price)}</td>
+                                <td style={{ ...styles.td, textAlign: "right" }}>
+                                  <button style={styles.smallBtnGhost} onClick={() => openInML(p.title)} title="Buscar en Mercado Libre">
+                                    <Search size={14} /> Buscar en ML
+                                  </button>
+                                  <button style={styles.smallBtnGold} onClick={() => startEvidence(p)} title="Registrar evidencia de competencia">
+                                    Registrar <ChevronRight size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {tab === "registrar" && (
+                  <section style={styles.twoCol}>
+                    <div style={styles.card}>
+                      <h2 style={styles.h2}>1. Producto propio</h2>
+                      {selectedProduct ? (
+                        <div>
+                          <p style={styles.productLine}><Tag size={14} color="#C9A227" /> {selectedProduct.sku}</p>
+                          <p style={styles.productTitle}>{selectedProduct.title}</p>
+                          <p style={styles.productPrice}>{currency(selectedProduct.price)}</p>
+                          <button style={styles.smallBtnGhost} onClick={() => openInML(selectedProduct.title)}>
+                            <Search size={14} /> Abrir búsqueda en ML
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p style={styles.muted}>No has seleccionado ningún producto. Ve al catálogo y presiona "Registrar" en el producto que quieras comparar.</p>
+                          <button style={styles.smallBtnGold} onClick={() => setTab("catalogo")}>Ir al catálogo</button>
+                        </div>
+                      )}
+                      <div style={styles.hint}>
+                        <p style={styles.hintTitle}>Cómo capturar los datos de la competencia</p>
+                        <ol style={styles.hintList}>
+                          <li>Busca la publicación de la competencia en Mercado Libre.</li>
+                          <li>Da clic en el marcador "Capturar ML" de tu navegador.</li>
+                          <li>Los datos se copian solos al portapapeles.</li>
+                          <li>Regresa aquí y presiona "Pegar del portapapeles".</li>
+                        </ol>
+                      </div>
+                    </div>
+
+                    <div style={styles.card}>
+                      <h2 style={styles.h2}>2. Publicación de la competencia</h2>
+                      <button style={styles.pasteBtn} onClick={handlePaste}><ClipboardPaste size={16} /> Pegar del portapapeles</button>
+                      
+                      <label style={styles.label}>Título de la publicación</label>
+                      <input style={styles.input} value={form.compTitle} onChange={(e) => setForm((f) => ({ ...f, compTitle: e.target.value }))} placeholder="Ej. Guitarra Eléctrica Fender" />
+                      
+                      <label style={styles.label}>Precio</label>
+                      <input style={styles.input} value={form.compPrice} onChange={(e) => setForm((f) => ({ ...f, compPrice: e.target.value }))} placeholder="Ej. $4,999" />
+                      
+                      <label style={styles.label}>Vendedor</label>
+                      <input style={styles.input} value={form.compSeller} onChange={(e) => setForm((f) => ({ ...f, compSeller: e.target.value }))} placeholder="Nombre de la tienda o vendedor" />
+                      
+                      <label style={styles.label}>Link de la publicación</label>
+                      <input style={styles.input} value={form.compLink} onChange={(e) => setForm((f) => ({ ...f, compLink: e.target.value }))} placeholder="https://articulo.mercadolibre.com.mx/..." />
+                      
+                      <label style={styles.label}>Captura de pantalla (evidencia)</label>
+                      <label style={styles.imageDrop}>
+                        <ImageIcon size={18} color="#8a93a6" />
+                        <span>{form.imageData ? "Cambiar imagen" : "Adjuntar captura"}</span>
+                        <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
+                      </label>
+                      {form.imageData && <img src={form.imageData} alt="evidencia" style={styles.preview} />}
+                      
+                      <button style={styles.saveBtn} onClick={saveEvidence}><Save size={16} /> Guardar evidencia</button>
+                    </div>
+                  </section>
+                )}
+
+                {tab === "evidencias" && (
+                  <section>
+                    <div style={styles.rowBetween}>
+                      <div>
+                        <h2 style={styles.h2}>Evidencias guardadas</h2>
+                        <p style={styles.muted}>Registro de publicaciones de la competencia capturadas.</p>
+                      </div>
+                      <button style={styles.uploadBtn} onClick={exportExcel}><Download size={16} /> Exportar a Excel</button>
+                    </div>
+
+                    {loadingEvidences ? (
+                      <p style={styles.muted}>Cargando evidencias...</p>
+                    ) : evidences.length === 0 ? (
+                      <div style={styles.emptyState}><p>Todavía no hay evidencias guardadas.</p></div>
+                    ) : (
+                      <div style={styles.cardsGrid}>
+                        {evidences.map((ev) => (
+                          <div key={ev.id} style={styles.evCard}>
+                            {ev.imageData ? <img src={ev.imageData} alt="" style={styles.evThumb} /> : <div style={styles.evThumbPlaceholder}><ImageIcon size={22} color="#5c6478" /></div>}
+                            <div style={styles.evBody}>
+                              <p style={styles.evSku}>{ev.sku}</p>
+                              <p style={styles.evOwn}>{ev.ownTitle}</p>
+                              <p style={styles.evOwnPrice}>{currency(ev.ownPrice)}</p>
+                              <div style={styles.evDivider} />
+                              <p style={styles.evComp}>{ev.compTitle}</p>
+                              <p style={styles.evCompPrice}>{currency(ev.compPrice)}</p>
+                              <p style={styles.evSeller}><Store size={12} /> {ev.compSeller || "Vendedor no especificado"}</p>
+                              {ev.compLink && <a href={ev.compLink} target="_blank" rel="noopener noreferrer" style={styles.evLink}><Link2 size={12} /> Ver publicación</a>}
+                              <p style={styles.evDate}>{new Date(ev.createdAt).toLocaleString("es-MX")}</p>
+                            </div>
+                            <button style={styles.deleteBtn} onClick={() => deleteEvidence(ev.id)} title="Eliminar"><Trash2 size={14} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {tab === "marcador" && (
+                  <section style={styles.card}>
+                    <h2 style={styles.h2}>Marcador de navegador (bookmarklet)</h2>
+                    <p style={styles.muted}>Arrastra el siguiente botón a tu barra de marcadores para extraer datos en Mercado Libre.</p>
+                    <a href={bookmarkletHref()} style={styles.bookmarkletLink} onClick={(e) => e.preventDefault()}>📌 Capturar ML</a>
+                  </section>
+                )}
+              </main>
+            </div>
+          );
+        }
+
+        // ---------- Styles ----------
+        const styles = {
+          app: { minHeight: "100vh", background: "#181D28", color: "#EDE6DA", fontFamily: "'Inter', sans-serif", padding: "0 0 60px" },
+          header: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "18px 28px", borderBottom: "1px solid #2A3142", position: "sticky", top: 0, background: "#181D28", zIndex: 10 },
+          brand: { display: "flex", alignItems: "center", gap: 8 },
+          brandText: { fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 18, letterSpacing: "-0.01em" },
+          nav: { display: "flex", gap: 6, flexWrap: "wrap" },
+          navBtn: { background: "transparent", border: "1px solid #2A3142", color: "#B7BECC", padding: "8px 14px", borderRadius: 8, fontSize: 13.5, fontWeight: 500 },
+          navBtnActive: { background: "#C9A227", borderColor: "#C9A227", color: "#181D28", fontWeight: 600 },
+          main: { padding: "28px", maxWidth: 1180, margin: "0 auto" },
+          h2: { fontFamily: "'Space Grotesk', sans-serif", fontSize: 21, fontWeight: 600, margin: "0 0 4px" },
+          muted: { color: "#9198A8", fontSize: 14, margin: "4px 0 16px" },
+          mutedSmall: { color: "#78808f", fontSize: 12.5, marginTop: 10 },
+          rowBetween: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 8 },
+          uploadBtn: { display: "flex", alignItems: "center", gap: 8, background: "#C9A227", color: "#181D28", border: "none", padding: "10px 16px", borderRadius: 8, fontWeight: 600, fontSize: 13.5 },
+          searchInput: { width: "100%", background: "#1F2531", border: "1px solid #2A3142", borderRadius: 8, padding: "10px 14px", color: "#EDE6DA", fontSize: 14, marginBottom: 16, outline: "none" },
+          tableWrap: { border: "1px solid #2A3142", borderRadius: 10, overflow: "hidden" },
+          table: { width: "100%", borderCollapse: "collapse" },
+          th: { textAlign: "left", padding: "12px 16px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8891A3", background: "#1F2531", borderBottom: "1px solid #2A3142" },
+          tr: { borderBottom: "1px solid #232937" },
+          td: { padding: "12px 16px", fontSize: 14 },
+          tdMono: { padding: "12px 16px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace", color: "#C9A227", whiteSpace: "nowrap" },
+          smallBtnGhost: { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid #3A4256", color: "#B7BECC", padding: "7px 12px", borderRadius: 7, fontSize: 12.5, marginRight: 8 },
+          smallBtnGold: { display: "inline-flex", alignItems: "center", gap: 4, background: "#C9A227", border: "none", color: "#181D28", padding: "7px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600 },
+          emptyState: { border: "1px dashed #2A3142", borderRadius: 10, padding: "40px 20px", textAlign: "center", color: "#9198A8" },
+          twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 },
+          card: { background: "#1F2531", border: "1px solid #2A3142", borderRadius: 12, padding: 22 },
+          productLine: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#9198A8", margin: "6px 0 2px" },
+          productTitle: { fontSize: 17, fontWeight: 600, margin: "2px 0 6px" },
+          productPrice: { fontFamily: "'JetBrains Mono', monospace", color: "#C9A227", fontSize: 15, marginBottom: 14 },
+          hint: { marginTop: 20, paddingTop: 16, borderTop: "1px solid #2A3142" },
+          hintTitle: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#D7CDBE" },
+          hintList: { fontSize: 13, color: "#9198A8", paddingLeft: 18, lineHeight: 1.7 },
+          pasteBtn: { display: "flex", alignItems: "center", gap: 8, background: "#2A3142", border: "1px solid #3A4256", color: "#EDE6DA", padding: "10px 14px", borderRadius: 8, fontSize: 13.5, fontWeight: 500, marginBottom: 16, width: "100%", justifyContent: "center" },
+          label: { display: "block", fontSize: 12, color: "#8891A3", marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.03em" },
+          input: { width: "100%", background: "#181D28", border: "1px solid #2A3142", borderRadius: 8, padding: "10px 12px", color: "#EDE6DA", fontSize: 14, outline: "none" },
+          imageDrop: { display: "flex", alignItems: "center", gap: 8, border: "1px dashed #3A4256", borderRadius: 8, padding: "12px", color: "#B7BECC", fontSize: 13.5, cursor: "pointer" },
+          preview: { width: "100%", borderRadius: 8, marginTop: 10, border: "1px solid #2A3142" },
+          saveBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "#C9A227", border: "none", color: "#181D28", padding: "12px", borderRadius: 8, fontSize: 14.5, fontWeight: 700, marginTop: 20 },
+          cardsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 },
+          evCard: { background: "#1F2531", border: "1px solid #2A3142", borderRadius: 12, overflow: "hidden", position: "relative" },
+          evThumb: { width: "100%", height: 150, objectFit: "cover" },
+          evThumbPlaceholder: { width: "100%", height: 150, background: "#181D28", display: "flex", alignItems: "center", justifyContent: "center" },
+          evBody: { padding: 14 },
+          evSku: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#78808f", margin: 0 },
+          evOwn: { fontSize: 13.5, fontWeight: 600, margin: "4px 0 2px" },
+          evOwnPrice: { fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#9198A8", margin: 0 },
+          evDivider: { height: 1, background: "#2A3142", margin: "10px 0" },
+          evComp: { fontSize: 13.5, fontWeight: 600, margin: "0 0 2px", color: "#EDE6DA" },
+          evCompPrice: { fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "#C9A227", margin: "0 0 6px" },
+          evSeller: { display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#9198A8", margin: "0 0 4px" },
+          evLink: { display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#C9A227", textDecoration: "none" },
+          evDate: { fontSize: 11, color: "#5c6478", marginTop: 8 },
+          deleteBtn: { position: "absolute", top: 10, right: 10, background: "rgba(24,29,40,0.8)", border: "1px solid #3A4256", color: "#e0a0a0", borderRadius: 6, padding: 6, display: "flex" },
+          bookmarkletLink: { display: "inline-block", background: "#2A3142", border: "2px dashed #C9A227", color: "#EDE6DA", padding: "12px 20px", borderRadius: 8, fontWeight: 600, fontSize: 14, textDecoration: "none", marginBottom: 8 },
+          toast: { position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#C9A227", color: "#181D28", padding: "10px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.35)" },
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
