@@ -37,26 +37,29 @@ function mlSearchUrl(title) {
 }
 
 // Bookmarklet source, kept as a readable function then minified for the href.
+// Bookmarklet source, kept as a readable function then minified for the href.
 const bookmarkletSource = function () {
   try {
+    // 1. Selector actualizado para el Título
     var titleEl =
       document.querySelector("h1.ui-pdp-title") ||
-      document.querySelector("[class*='title']");
+      document.querySelector(".ui-pdp-header__title-container h1");
     var title = titleEl ? titleEl.innerText.trim() : document.title;
 
+    // 2. Selector actualizado para el Precio
     var priceEl =
-      document.querySelector(
-        ".ui-pdp-price__second-line .andes-money-amount__fraction"
-      ) || document.querySelector(".andes-money-amount__fraction");
+      document.querySelector(".ui-pdp-price__second-line .andes-money-amount__fraction") || 
+      document.querySelector(".andes-money-amount__fraction");
     var price = priceEl ? priceEl.innerText.trim() : "";
 
+    // 3. Selector actualizado para el Vendedor (¡El principal culpable del error!)
     var sellerEl =
-      document.querySelector(".ui-pdp-seller__link-trigger") ||
-      document.querySelector("[class*='seller'] a") ||
-      document.querySelector("[class*='seller']");
+      document.querySelector(".ui-pdp-seller-summary__link") ||
+      document.querySelector(".ui-pdp-seller-summary__link-trigger-button a");
     var seller = sellerEl ? sellerEl.innerText.trim() : "";
 
-    var link = window.location.href;
+    // Limpiamos la URL para que no traiga parámetros basura de rastreo
+    var link = window.location.href.split('?')[0];
 
     var text =
       "Titulo: " +
@@ -71,7 +74,7 @@ const bookmarkletSource = function () {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
         function () {
-          alert("Copiado al portapapeles:\n\n" + text);
+          alert("✅ ¡Éxito! Copiado al portapapeles:\n\n" + text);
         },
         function () {
           window.prompt("Copia manualmente estos datos:", text);
