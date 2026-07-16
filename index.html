@@ -10,11 +10,17 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
+        const supabase = supabase.createClient(
+            'https://amwedzybiglfdrcfqwlh.supabase.co/rest/v1/',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtd2VkenliaWdsZmRyY2Zxd2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDMxMjAsImV4cCI6MjA5OTYxOTEyMH0.xiNBYADcADPt6p0b856PVhzRWq4rAq0MHBCOtGhoYMc'
+        )
+        
         // Declaramos los hooks de React de forma global
         const { useState, useEffect, useRef, useCallback } = React;
         

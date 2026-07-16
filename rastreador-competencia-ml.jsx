@@ -1,6 +1,5 @@
 // ---------- Helpers ----------
 const STORAGE_CATALOG_KEY = "catalogo-productos";
-const STORAGE_INDEX_KEY = "evidencias-index";
 
 const norm = (s = "") => s.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -84,6 +83,13 @@ function resizeImage(file, maxWidth = 900, quality = 0.8) {
   });
 }
 
+// ---------- INICIALIZACIÓN DE SUPABASE ----------
+// PEGA AQUÍ TUS CREDENCIALES
+const supabaseUrl = 'https://amwedzybiglfdrcfqwlh.supabase.co/rest/v1/';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtd2VkenliaWdsZmRyY2Zxd2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDMxMjAsImV4cCI6MjA5OTYxOTEyMH0.xiNBYADcADPt6p0b856PVhzRWq4rAq0MHBCOtGhoYMc';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+
 // ---------- App Component ----------
 
 function App() {
@@ -93,9 +99,8 @@ function App() {
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [search, setSearch] = useState("");
   
-  // NUEVO: Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50; // Optimizado: Solo dibuja 50 a la vez
+  const itemsPerPage = 50; 
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [form, setForm] = useState({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
@@ -107,9 +112,10 @@ function App() {
 
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 2800);
+    setTimeout(() => setToast(""), 3000);
   };
 
+  // Carga del catálogo local (Se mantiene local por ser masivo)
   useEffect(() => {
     (async () => {
       try {
@@ -122,37 +128,50 @@ function App() {
     })();
   }, []);
 
+  // Carga de evidencias desde Supabase
   const loadEvidences = useCallback(async () => {
     setLoadingEvidences(true);
     try {
-      const idx = await window.storage.get(STORAGE_INDEX_KEY, false);
-      const ids = idx && idx.value ? JSON.parse(idx.value) : [];
-      const items = [];
-      for (const id of ids) {
-        try {
-          const rec = await window.storage.get(`evidencia:${id}`, false);
-          if (rec && rec.value) items.push(JSON.parse(rec.value));
-        } catch (e) {}
+      const { data, error } = await supabase
+        .from('evidencias')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      if (data) {
+        // Formateamos para que funcione igual que antes
+        const items = data.map(item => ({
+            id: item.id,
+            createdAt: new Date(item.created_at).getTime(),
+            sku: item.sku,
+            ownTitle: item.own_title,
+            ownPrice: item.own_price || "",
+            ownLink: item.own_link || "",
+            compTitle: item.comp_title,
+            compPrice: item.comp_price,
+            compSeller: item.comp_seller,
+            compLink: item.comp_link,
+            imageData: item.image_url
+        }));
+        setEvidences(items);
       }
-      items.sort((a, b) => b.createdAt - a.createdAt);
-      setEvidences(items);
-    } catch (e) { setEvidences([]); }
+    } catch (e) { 
+      console.error(e);
+      setEvidences([]); 
+    }
     setLoadingEvidences(false);
   }, []);
 
   useEffect(() => { loadEvidences(); }, [loadEvidences]);
 
-  // Si el usuario busca algo nuevo, regresarlo a la página 1
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search]);
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   async function handleExcelUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setLoadingCatalog(true); // Mostrar que está trabajando
+    setLoadingCatalog(true); 
     
-    // Pequeña pausa para que React alcance a pintar el "Cargando..."
     setTimeout(async () => {
         const data = await file.arrayBuffer();
         const wb = XLSX.read(data);
@@ -222,37 +241,76 @@ function App() {
     } catch (err) { showToast("No se pudo procesar la imagen"); }
   }
 
+  // --- GUARDADO EN SUPABASE ---
   async function saveEvidence() {
     if (!selectedProduct) return showToast("Selecciona un producto del catálogo");
     if (!form.compTitle || !form.compPrice) return showToast("Falta el título o el precio de la competencia");
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const record = {
-      id, createdAt: Date.now(),
-      sku: selectedProduct.sku, ownTitle: selectedProduct.title, ownPrice: selectedProduct.price, ownLink: selectedProduct.link,
-      compTitle: form.compTitle, compPrice: form.compPrice, compSeller: form.compSeller, compLink: form.compLink, imageData: form.imageData,
-    };
+    if (!form.imageData) return showToast("Falta adjuntar la captura de pantalla");
+
+    showToast("Subiendo evidencia a la nube... ⏳");
+
     try {
-      await window.storage.set(`evidencia:${id}`, JSON.stringify(record), false);
-      const idx = await window.storage.get(STORAGE_INDEX_KEY, false).catch(() => null);
-      const ids = idx && idx.value ? JSON.parse(idx.value) : [];
-      ids.push(id);
-      await window.storage.set(STORAGE_INDEX_KEY, JSON.stringify(ids), false);
-      showToast("Evidencia guardada");
+      // 1. Convertir Base64 a Blob
+      const base64Response = await fetch(form.imageData);
+      const blob = await base64Response.blob();
+      const fileName = `${selectedProduct.sku || 'N/A'}_${Date.now()}.jpg`;
+
+      // 2. Subir imagen al Bucket
+      const { error: uploadError } = await supabase.storage
+          .from('evidencias-imagenes')
+          .upload(fileName, blob);
+
+      if (uploadError) throw uploadError;
+
+      // 3. Obtener URL de la imagen
+      const { data: publicUrlData } = supabase.storage
+          .from('evidencias-imagenes')
+          .getPublicUrl(fileName);
+
+      // 4. Guardar datos en la base de datos
+      const { error: dbError } = await supabase.from('evidencias').insert([
+          {
+              sku: selectedProduct.sku,
+              own_title: selectedProduct.title,
+              own_price: String(selectedProduct.price),
+              own_link: selectedProduct.link,
+              comp_title: form.compTitle,
+              comp_price: form.compPrice,
+              comp_seller: form.compSeller,
+              comp_link: form.compLink,
+              image_url: publicUrlData.publicUrl
+          }
+      ]);
+
+      if (dbError) throw dbError;
+
+      showToast("✅ ¡Evidencia guardada exitosamente en la Nube!");
       setForm({ compTitle: "", compPrice: "", compSeller: "", compLink: "", imageData: "" });
       loadEvidences();
       setTab("catalogo"); 
-    } catch (err) { showToast("Error al guardar la evidencia"); }
+    } catch (err) { 
+      console.error(err);
+      showToast("❌ Error al guardar. Revisa consola (F12)"); 
+    }
   }
 
-  async function deleteEvidence(id) {
+  // --- ELIMINAR DE SUPABASE ---
+  async function deleteEvidence(ev) {
+    if(!confirm("¿Seguro que deseas eliminar permanentemente esta evidencia de la nube?")) return;
     try {
-      await window.storage.delete(`evidencia:${id}`, false);
-      const idx = await window.storage.get(STORAGE_INDEX_KEY, false).catch(() => null);
-      const ids = idx && idx.value ? JSON.parse(idx.value) : [];
-      const filtered = ids.filter((x) => x !== id);
-      await window.storage.set(STORAGE_INDEX_KEY, JSON.stringify(filtered), false);
+      // 1. Extraer nombre del archivo y borrar del bucket
+      if (ev.imageData) {
+          const fileName = ev.imageData.split('/').pop();
+          await supabase.storage.from('evidencias-imagenes').remove([fileName]);
+      }
+      // 2. Borrar de la tabla
+      await supabase.from('evidencias').delete().eq('id', ev.id);
+      
+      showToast("🗑️ Evidencia eliminada de la nube");
       loadEvidences();
-    } catch (err) { showToast("No se pudo eliminar el registro"); }
+    } catch (err) { 
+      showToast("No se pudo eliminar el registro"); 
+    }
   }
 
   function exportExcel() {
@@ -261,11 +319,11 @@ function App() {
       SKU: ev.sku,
       "Producto propio": ev.ownTitle, "Precio propio": ev.ownPrice, "Link propio": ev.ownLink,
       "Producto competencia": ev.compTitle, "Precio competencia": ev.compPrice, "Vendedor competencia": ev.compSeller, "Link competencia": ev.compLink,
-      "Tiene captura": ev.imageData ? "Sí" : "No",
+      "Link a Captura": ev.imageData || "Sin imagen",
       Fecha: new Date(ev.createdAt).toLocaleString("es-MX"),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [ { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 20 }, { wch: 28 }, { wch: 10 }, { wch: 18 } ];
+    ws["!cols"] = [ { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 20 }, { wch: 28 }, { wch: 35 }, { wch: 18 } ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Evidencias");
     const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -278,7 +336,6 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-  // --- LÓGICA DE FILTRADO Y PAGINACIÓN ---
   const filteredProducts = products.filter((p) => {
     if (hiddenIds.includes(p.id)) return false;
     const q = norm(search);
@@ -288,7 +345,6 @@ function App() {
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   
-  // Obtenemos solo los productos de la página actual
   const paginatedProducts = filteredProducts.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -314,7 +370,7 @@ function App() {
           {[
             { id: "catalogo", label: "Catálogo" },
             { id: "registrar", label: "Registrar evidencia" },
-            { id: "evidencias", label: `Evidencias (${evidences.length})` },
+            { id: "evidencias", label: `Evidencias Nube (${evidences.length})` },
             { id: "marcador", label: "Marcador de navegador" },
           ].map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{ ...styles.navBtn, ...(tab === t.id ? styles.navBtnActive : {}) }}>
@@ -332,7 +388,7 @@ function App() {
             <div style={styles.rowBetween}>
               <div>
                 <h2 style={styles.h2}>Catálogo propio</h2>
-                <p style={styles.muted}>Sube tu Excel con columnas SKU, Título, Precio y Link. Se guarda en este navegador para futuras visitas.</p>
+                <p style={styles.muted}>Sube tu Excel con columnas SKU, Título, Precio y Link. Se guarda en este navegador de forma ultra rápida.</p>
               </div>
               <label style={styles.uploadBtn}>
                 <Upload size={16} /> Cargar Excel
@@ -353,7 +409,7 @@ function App() {
 
             {loadingCatalog ? (
               <div style={styles.emptyState}>
-                 <p>Cargando y procesando catálogo... (Esto puede demorar unos segundos si el archivo es grande)</p>
+                 <p>Cargando y procesando catálogo...</p>
               </div>
             ) : products.length === 0 ? (
               <div style={styles.emptyState}>
@@ -373,7 +429,6 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {/* Dibujamos SOLO los paginados, no los miles de golpe */}
                       {paginatedProducts.map((p) => (
                         <tr key={p.id} style={styles.tr}>
                           <td style={styles.tdMono}>{p.sku || "-"}</td>
@@ -381,7 +436,7 @@ function App() {
                           <td style={styles.tdMono}>{currency(p.price)}</td>
                           <td style={{ ...styles.td, textAlign: "right" }}>
                             <button style={styles.smallBtnGhost} onClick={() => hideProduct(p.id)} title="Ocultar producto de la lista">
-                              Ocultar
+                              🙈 Ocultar
                             </button>
                             <button style={styles.smallBtnGhost} onClick={() => openInML(p.title)} title="Buscar en Mercado Libre">
                               <Search size={14} /> Buscar en ML
@@ -399,7 +454,6 @@ function App() {
                   </table>
                 </div>
 
-                {/* CONTROLES DE PAGINACIÓN */}
                 {totalPages > 1 && (
                   <div style={styles.pagination}>
                     <button 
@@ -478,7 +532,7 @@ function App() {
               </label>
               {form.imageData && <img src={form.imageData} alt="evidencia" style={styles.preview} />}
               
-              <button style={styles.saveBtn} onClick={saveEvidence}><Save size={16} /> Guardar evidencia</button>
+              <button style={styles.saveBtn} onClick={saveEvidence}><Save size={16} /> Guardar evidencia en Supabase</button>
             </div>
           </section>
         )}
@@ -487,16 +541,16 @@ function App() {
           <section>
             <div style={styles.rowBetween}>
               <div>
-                <h2 style={styles.h2}>Evidencias guardadas</h2>
-                <p style={styles.muted}>Registro de publicaciones de la competencia capturadas.</p>
+                <h2 style={styles.h2}>Evidencias alojadas en la Nube</h2>
+                <p style={styles.muted}>Registro sincronizado con Supabase. Cero límites de memoria.</p>
               </div>
               <button style={styles.uploadBtn} onClick={exportExcel}><Download size={16} /> Exportar a Excel</button>
             </div>
 
             {loadingEvidences ? (
-              <p style={styles.muted}>Cargando evidencias...</p>
+              <p style={styles.muted}>Descargando de Supabase...</p>
             ) : evidences.length === 0 ? (
-              <div style={styles.emptyState}><p>Todavía no hay evidencias guardadas.</p></div>
+              <div style={styles.emptyState}><p>Todavía no hay evidencias en la nube.</p></div>
             ) : (
               <div style={styles.cardsGrid}>
                 {evidences.map((ev) => (
@@ -513,7 +567,7 @@ function App() {
                       {ev.compLink && <a href={ev.compLink} target="_blank" rel="noopener noreferrer" style={styles.evLink}><Link2 size={12} /> Ver publicación</a>}
                       <p style={styles.evDate}>{new Date(ev.createdAt).toLocaleString("es-MX")}</p>
                     </div>
-                    <button style={styles.deleteBtn} onClick={() => deleteEvidence(ev.id)} title="Eliminar"><Trash2 size={14} /></button>
+                    <button style={styles.deleteBtn} onClick={() => deleteEvidence(ev)} title="Eliminar de la nube"><Trash2 size={14} /></button>
                   </div>
                 ))}
               </div>
@@ -584,13 +638,11 @@ const styles = {
   evComp: { fontSize: 13.5, fontWeight: 600, margin: "0 0 2px", color: "#EDE6DA" },
   evCompPrice: { fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "#C9A227", margin: "0 0 6px" },
   evSeller: { display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#9198A8", margin: "0 0 4px" },
-  evLink: { display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#C9A227", textDecoration: "none" },
+  evLink: { display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#C9A227", textDecoration: "none", wordBreak: "break-all" },
   evDate: { fontSize: 11, color: "#5c6478", marginTop: 8 },
-  deleteBtn: { position: "absolute", top: 10, right: 10, background: "rgba(24,29,40,0.8)", border: "1px solid #3A4256", color: "#e0a0a0", borderRadius: 6, padding: 6, display: "flex" },
+  deleteBtn: { position: "absolute", top: 10, right: 10, background: "rgba(24,29,40,0.8)", border: "1px solid #3A4256", color: "#e0a0a0", borderRadius: 6, padding: 6, display: "flex", cursor: "pointer" },
   bookmarkletLink: { display: "inline-block", background: "#2A3142", border: "2px dashed #C9A227", color: "#EDE6DA", padding: "12px 20px", borderRadius: 8, fontWeight: 600, fontSize: 14, textDecoration: "none", marginBottom: 8 },
   toast: { position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#C9A227", color: "#181D28", padding: "10px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.35)" },
-  
-  // NUEVOS ESTILOS: Para la Paginación
   pagination: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", padding: "10px 0" },
   pageBtn: { background: "#1F2531", border: "1px solid #3A4256", color: "#EDE6DA", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 13 },
   pageText: { color: "#9198A8", fontSize: 13 }
