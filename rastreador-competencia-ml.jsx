@@ -84,9 +84,9 @@ function resizeImage(file, maxWidth = 900, quality = 0.8) {
 }
 
 // ---------- INICIALIZACIÓN DE SUPABASE ----------
-// PEGA AQUÍ TUS CREDENCIALES
-const supabaseUrl = 'https://amwedzybiglfdrcfqwlh.supabase.co/rest/v1/';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtd2VkenliaWdsZmRyY2Zxd2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDMxMjAsImV4cCI6MjA5OTYxOTEyMH0.xiNBYADcADPt6p0b856PVhzRWq4rAq0MHBCOtGhoYMc';
+// PEGA AQUÍ TUS CREDENCIALES (Asegúrate de poner las tuyas)
+const supabaseUrl = 'TU_SUPABASE_URL_AQUÍ';
+const supabaseKey = 'TU_SUPABASE_ANON_KEY_AQUÍ';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 
@@ -115,7 +115,7 @@ function App() {
     setTimeout(() => setToast(""), 3000);
   };
 
-  // Carga del catálogo local (Se mantiene local por ser masivo)
+  // Carga del catálogo local
   useEffect(() => {
     (async () => {
       try {
@@ -140,7 +140,6 @@ function App() {
       if (error) throw error;
       
       if (data) {
-        // Formateamos para que funcione igual que antes
         const items = data.map(item => ({
             id: item.id,
             createdAt: new Date(item.created_at).getTime(),
@@ -232,6 +231,28 @@ function App() {
     } catch (e) { showToast("No se pudo leer el portapapeles"); }
   }
 
+  // --- NUEVA FUNCIÓN: Pegar imagen con Ctrl+V ---
+  async function handleImagePaste(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault(); // Evitamos comportamiento por defecto
+        const file = items[i].getAsFile();
+        if (!file) continue;
+        try {
+          const dataUrl = await resizeImage(file);
+          setForm((f) => ({ ...f, imageData: dataUrl }));
+          showToast("📸 Captura de pantalla pegada con éxito");
+        } catch (err) { 
+          showToast("❌ No se pudo procesar la imagen"); 
+        }
+        return; // Terminamos porque ya encontramos la imagen
+      }
+    }
+  }
+
   async function handleImageChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -250,24 +271,20 @@ function App() {
     showToast("Subiendo evidencia a la nube... ⏳");
 
     try {
-      // 1. Convertir Base64 a Blob
       const base64Response = await fetch(form.imageData);
       const blob = await base64Response.blob();
       const fileName = `${selectedProduct.sku || 'N/A'}_${Date.now()}.jpg`;
 
-      // 2. Subir imagen al Bucket
       const { error: uploadError } = await supabase.storage
           .from('evidencias-imagenes')
           .upload(fileName, blob);
 
       if (uploadError) throw uploadError;
 
-      // 3. Obtener URL de la imagen
       const { data: publicUrlData } = supabase.storage
           .from('evidencias-imagenes')
           .getPublicUrl(fileName);
 
-      // 4. Guardar datos en la base de datos
       const { error: dbError } = await supabase.from('evidencias').insert([
           {
               sku: selectedProduct.sku,
@@ -298,12 +315,10 @@ function App() {
   async function deleteEvidence(ev) {
     if(!confirm("¿Seguro que deseas eliminar permanentemente esta evidencia de la nube?")) return;
     try {
-      // 1. Extraer nombre del archivo y borrar del bucket
       if (ev.imageData) {
           const fileName = ev.imageData.split('/').pop();
           await supabase.storage.from('evidencias-imagenes').remove([fileName]);
       }
-      // 2. Borrar de la tabla
       await supabase.from('evidencias').delete().eq('id', ev.id);
       
       showToast("🗑️ Evidencia eliminada de la nube");
@@ -359,6 +374,8 @@ function App() {
         ::-webkit-scrollbar-thumb { background: #3d4457; border-radius: 4px; }
         button { font-family: inherit; cursor: pointer; }
         input, select { font-family: inherit; }
+        /* Efecto al seleccionar la zona de pegado de imagen */
+        .zona-pegado:focus { border-color: #C9A227 !important; background-color: #232937 !important; outline: none; }
       `}</style>
 
       <header style={styles.header}>
@@ -525,11 +542,23 @@ function App() {
               <input style={styles.input} value={form.compLink} onChange={(e) => setForm((f) => ({ ...f, compLink: e.target.value }))} placeholder="https://articulo.mercadolibre.com.mx/..." />
               
               <label style={styles.label}>Captura de pantalla (evidencia)</label>
-              <label style={styles.imageDrop}>
+              
+              {/* --- ZONA DE PEGADO DE IMAGEN ACTUALIZADA --- */}
+              <label 
+                className="zona-pegado"
+                style={{...styles.imageDrop, outline: "none"}} 
+                tabIndex="0" 
+                onPaste={handleImagePaste}
+              >
                 <ImageIcon size={18} color="#8a93a6" />
-                <span>{form.imageData ? "Cambiar imagen" : "Adjuntar captura"}</span>
+                <span>
+                  {form.imageData 
+                    ? "✅ Imagen lista (Haz clic y Ctrl+V para cambiar)" 
+                    : "Haz clic aquí y presiona Ctrl + V para pegar captura"}
+                </span>
                 <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
               </label>
+
               {form.imageData && <img src={form.imageData} alt="evidencia" style={styles.preview} />}
               
               <button style={styles.saveBtn} onClick={saveEvidence}><Save size={16} /> Guardar evidencia en Supabase</button>
@@ -623,7 +652,7 @@ const styles = {
   pasteBtn: { display: "flex", alignItems: "center", gap: 8, background: "#2A3142", border: "1px solid #3A4256", color: "#EDE6DA", padding: "10px 14px", borderRadius: 8, fontSize: 13.5, fontWeight: 500, marginBottom: 16, width: "100%", justifyContent: "center" },
   label: { display: "block", fontSize: 12, color: "#8891A3", marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.03em" },
   input: { width: "100%", background: "#181D28", border: "1px solid #2A3142", borderRadius: 8, padding: "10px 12px", color: "#EDE6DA", fontSize: 14, outline: "none" },
-  imageDrop: { display: "flex", alignItems: "center", gap: 8, border: "1px dashed #3A4256", borderRadius: 8, padding: "12px", color: "#B7BECC", fontSize: 13.5, cursor: "pointer" },
+  imageDrop: { display: "flex", alignItems: "center", gap: 8, border: "1px dashed #3A4256", borderRadius: 8, padding: "12px", color: "#B7BECC", fontSize: 13.5, cursor: "pointer", transition: "0.2s" },
   preview: { width: "100%", borderRadius: 8, marginTop: 10, border: "1px solid #2A3142" },
   saveBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "#C9A227", border: "none", color: "#181D28", padding: "12px", borderRadius: 8, fontSize: 14.5, fontWeight: 700, marginTop: 20 },
   cardsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 },
