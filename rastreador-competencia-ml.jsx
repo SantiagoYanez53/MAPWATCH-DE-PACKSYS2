@@ -271,20 +271,33 @@ function App() {
     showToast("Subiendo evidencia a la nube... ⏳");
 
     try {
-      const base64Response = await fetch(form.imageData);
-      const blob = await base64Response.blob();
+      // --- LÓGICA CORREGIDA: Convertir Base64 a Blob matemáticamente (Evita error CSP) ---
+      const arr = form.imageData.split(',');
+      const mime = arr[0].match(/:(.*?);/)[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while(n--){
+          u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], {type: mime});
+      // --------------------------------------------------------------------------------
+
       const fileName = `${selectedProduct.sku || 'N/A'}_${Date.now()}.jpg`;
 
+      // Subir imagen al Bucket
       const { error: uploadError } = await supabase.storage
           .from('evidencias-imagenes')
           .upload(fileName, blob);
 
       if (uploadError) throw uploadError;
 
+      // Obtener URL pública
       const { data: publicUrlData } = supabase.storage
           .from('evidencias-imagenes')
           .getPublicUrl(fileName);
 
+      // Guardar datos en la base de datos
       const { error: dbError } = await supabase.from('evidencias').insert([
           {
               sku: selectedProduct.sku,
