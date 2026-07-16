@@ -308,7 +308,8 @@ function App() {
               comp_price: form.compPrice,
               comp_seller: form.compSeller,
               comp_link: form.compLink,
-              image_url: publicUrlData.publicUrl
+              image_url: publicUrlData.publicUrl,
+              created_at: new Date().toISOString()
           }
       ]);
 
