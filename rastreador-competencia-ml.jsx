@@ -85,7 +85,7 @@ function resizeImage(file, maxWidth = 900, quality = 0.8) {
 
 // ---------- INICIALIZACIÓN DE SUPABASE ----------
 // PEGA AQUÍ TUS CREDENCIALES (Asegúrate de poner las tuyas)
-const supabaseUrl = 'https://amwedzybiglfdrcfqwlh.supabase.co/rest/v1/';
+const supabaseUrl = 'https://amwedzybiglfdrcfqwlh.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtd2VkenliaWdsZmRyY2Zxd2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDMxMjAsImV4cCI6MjA5OTYxOTEyMH0.xiNBYADcADPt6p0b856PVhzRWq4rAq0MHBCOtGhoYMc';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
